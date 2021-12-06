@@ -1,0 +1,244 @@
+---
+title: "MGSC Final Project"
+author: "Anjali Maniar and Alyssa Ruste"
+subtitle: MGSC 310 
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+```{r setup, include=FALSE}
+
+# Please leave this code chunk as is. It makes some slight formatting changes to alter the output to be more aesthetically pleasing. 
+
+library(knitr)
+
+# Change the number in set seed to your own favorite number
+set.seed(1818)
+options(width=70)
+options(scipen=99)
+
+
+# this sets text outputted in code chunks to small
+opts_chunk$set(tidy.opts=list(width.wrap=50),tidy=TRUE, size = "vsmall")  
+opts_chunk$set(message = FALSE,                                          
+               warning = FALSE,
+               # "caching" stores objects in code chunks and only rewrites if you change things
+               cache = FALSE,                               
+               # automatically downloads dependency files
+               autodep = TRUE,
+               # 
+               cache.comments = FALSE,
+               # 
+               collapse = TRUE,
+               # change fig.width and fig.height to change the code height and width by default
+               fig.width = 5.5,  
+               fig.height = 4.5,
+               fig.align='center')
+
+
+```
+
+```{r setup-2}
+
+sessionInfo()
+getwd()
+
+```
+
+
+
+```{r setup-3}
+
+# load all your libraries in this chunk 
+library('tidyverse')
+library('ggplot2')
+library('fastDummies')
+library('AMR')
+library('dplyr')
+library('glmnet')
+library('glmnetUtils')
+
+```
+
+
+```{r}
+
+airplane <- read.csv(here::here("datasets", "plane_train.csv"))
+
+airplane$Sex <-
+  ifelse(airplane$Gender == "Female", 1, 0)
+
+airplane$Types.of.Customers <-
+  ifelse(airplane$Customer.Type == "Loyal Customer", 1, 0)
+
+airplane$Travel.Types <-
+  ifelse(airplane$Type.of.Travel == "Personal Travel", 1, 0)
+
+airplane$satisfaction <-
+  ifelse(airplane$satisfaction == "satisfied", 1, 0)
+
+airplane <- dummy_cols(airplane, select_columns = 'Class')
+
+airplane$age_grouping <- cut(airplane$Age, breaks = c(0, 18, 29, 39, 49, 64, 100),
+labels = c("0-18yrs", "19-29yrs", "30-39yrs", "40-49yrs","50-64yrs", "65+ yrs"))
+
+airplane$satisfied <- factor(airplane$satisfaction, labels=c("No", "Yes"))
+
+airplane
+```
+```{r}
+summary(airplane)
+```
+
+  
+Ggplot 1: 
+```{r}
+ggplot(airplane, 
+       aes(x = Class, 
+           fill = satisfied)) + 
+  geom_bar(position = "stack")
+
+```
+Ggplot 2:
+```{r}
+ggplot(airplane, aes(x=Type.of.Travel, y=Flight.Distance, color=Gender)) + geom_boxplot() 
+
+```
+
+Ggplot 3:
+```{r}
+ggplot(airplane, aes(x=satisfied, y=Age, color=Gender)) + geom_boxplot() 
+
+```
+```{r}
+head(airplane)
+
+```
+
+Anjali's data cleaning:
+```{r}
+airplane <-
+  airplane %>%
+  mutate(Class = as.factor(Class))
+
+airplane$Class <- relevel(airplane$Class, ref = "Eco")
+
+
+airplane <-
+  airplane %>%
+  mutate(Inflight.wifi.service = as.factor(Inflight.wifi.service))
+
+
+
+airplane <-
+  airplane %>%
+  mutate(Departure.Arrival.time.convenient = as.factor(Departure.Arrival.time.convenient))
+
+#print(levels(airplane$Departure.Arrival.time.convenient))
+
+airplane <-
+  airplane %>%
+  mutate(Ease.of.Online.booking = as.factor(Ease.of.Online.booking))
+
+#print(levels(airplane$Ease.of.Online.booking))
+
+airplane <-
+  airplane %>%
+  mutate(Gate.location = as.factor(Gate.location))
+
+#print(levels(airplane$Gate.location))
+
+airplane <-
+  airplane %>%
+  mutate(Food.and.drink = as.factor(Food.and.drink))
+
+#print(levels(airplane$Food.and.drink))
+
+airplane <-
+  airplane %>%
+  mutate(Online.boarding = as.factor(Online.boarding))
+
+#print(levels(airplane$Online.boarding))
+
+airplane <-
+  airplane %>%
+  mutate(Seat.comfort = as.factor(Seat.comfort))
+
+#print(levels(airplane$Seat.comfort))
+
+airplane <-
+  airplane %>%
+  mutate(Inflight.entertainment = as.factor(Inflight.entertainment))
+
+#print(levels(airplane$Inflight.entertainment))
+
+airplane <-
+  airplane %>%
+  mutate(On.board.service = as.factor(On.board.service))
+
+#print(levels(airplane$On.board.service))
+
+
+airplane <-
+  airplane %>%
+  mutate(Leg.room.service = as.factor(Leg.room.service))
+
+#print(levels(airplane$Leg.room.service))
+
+airplane <-
+  airplane %>%
+  mutate(Baggage.handling = as.factor(Baggage.handling))
+
+#there are no 0's in Baggage handling
+
+#print(levels(airplane$Baggage.handling))
+
+airplane <-
+  airplane %>%
+  mutate(Checkin.service = as.factor(Checkin.service))
+
+#print(levels(airplane$Checkin.service))
+
+airplane <-
+  airplane %>%
+  mutate(Inflight.service = as.factor(Inflight.service))
+
+#print(levels(airplane$Inflight.service))
+
+airplane <-
+  airplane %>%
+  mutate(Cleanliness = as.factor(Cleanliness))
+
+#print(levels(airplane$Cleanliness))
+
+airplane <-
+  airplane %>%
+  mutate(age_grouping = as.factor(age_grouping))
+
+#print(levels(airplane$age_grouping))
+
+head(airplane)
+
+
+  
+```  
+
+Lasso Logistic Regression:
+```{r}
+
+lasso_mod <- cv.glmnet(satisfaction ~ Gender + age_grouping + Sex +  Types.of.Customers + Travel.Types + Class +Inflight.wifi.service + Departure.Arrival.time.convenient + Ease.of.Online.booking + Gate.location + Food.and.drink + Online.boarding + Seat.comfort + Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling + Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes, data = airplane, alpha = 1)
+print(lasso_mod$lambda.1se)
+
+
+lasso_coefs <- data.frame(
+  `lasso_min` = coef(lasso_mod, s = lasso_mod$lambda.min) %>% 
+    round(3) %>% as.matrix() %>% as.data.frame(),
+  `lasso_1se` = coef(lasso_mod, s = lasso_mod$lambda.1se) %>% 
+    round(3) %>% as.matrix() %>%  as.data.frame())  %>% rename(`lasso_min` = 1, `lasso_1se` = 2)
+
+print(lasso_coefs)
+print(levels(airplane$Inflight.wifi.service))
+
+```   
