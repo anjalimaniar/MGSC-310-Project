@@ -1,0 +1,407 @@
+---
+title: "MGSC Final Project"
+author: "Anjali Maniar and Alyssa Ruste"
+subtitle: MGSC 310 
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+```{r setup, include=FALSE}
+
+# Please leave this code chunk as is. It makes some slight formatting changes to alter the output to be more aesthetically pleasing. 
+
+library(knitr)
+
+# Change the number in set seed to your own favorite number
+set.seed(1818)
+options(width=70)
+options(scipen=99)
+
+
+# this sets text outputted in code chunks to small
+opts_chunk$set(tidy.opts=list(width.wrap=50),tidy=TRUE, size = "vsmall")  
+opts_chunk$set(message = FALSE,                                          
+               warning = FALSE,
+               # "caching" stores objects in code chunks and only rewrites if you change things
+               cache = FALSE,                               
+               # automatically downloads dependency files
+               autodep = TRUE,
+               # 
+               cache.comments = FALSE,
+               # 
+               collapse = TRUE,
+               # change fig.width and fig.height to change the code height and width by default
+               fig.width = 5.5,  
+               fig.height = 4.5,
+               fig.align='center')
+
+
+```
+
+```{r setup-2}
+
+sessionInfo()
+getwd()
+
+```
+
+
+
+```{r setup-3}
+
+# load all your libraries in this chunk 
+library('tidyverse')
+library('ggplot2')
+library('fastDummies')
+library('AMR')
+library('dplyr')
+library('partykit')
+library('PerformanceAnalytics')
+library('rpart')       
+library('rpart.plot')  
+library('randomForest')
+library('randomForestExplainer')
+library('caret')
+library('e1071')
+library('Metrics')
+library('glmnet')
+library('glmnetUtils')
+
+```
+
+
+```{r}
+
+airplane_train <- read.csv(here::here("datasets", "plane_train.csv"))
+
+airplane_train$Sex <-
+  ifelse(airplane_train$Gender == "Female", 1, 0)
+
+airplane_train$Types.of.Customers <-
+  ifelse(airplane_train$Customer.Type == "Loyal Customer", 1, 0)
+
+airplane_train$Travel.Types <-
+  ifelse(airplane_train$Type.of.Travel == "Personal Travel", 1, 0)
+
+airplane_train$satisfaction <-
+  ifelse(airplane_train$satisfaction == "satisfied", 1, 0)
+
+airplane_train <- dummy_cols(airplane_train, select_columns = 'Class')
+
+airplane_train$age_grouping <- cut(airplane_train$Age, breaks = c(0, 18, 29, 39, 49, 64, 100),
+labels = c("0-18yrs", "19-29yrs", "30-39yrs", "40-49yrs","50-64yrs", "65+ yrs"))
+
+airplane_train$satisfied <- factor(airplane_train$satisfaction, labels=c("No", "Yes"))
+
+airplane_train
+```
+
+```{r}
+airplane_train <-
+  airplane_train %>%
+  mutate(Class = as.factor(Class))
+
+airplane_train$Class <- relevel(airplane_train$Class, ref = "Eco")
+
+
+airplane_train <-
+  airplane_train %>%
+  mutate(Inflight.wifi.service = as.factor(Inflight.wifi.service),
+         Departure.Arrival.time.convenient = as.factor(Departure.Arrival.time.convenient),
+         Ease.of.Online.booking = as.factor(Ease.of.Online.booking),
+         Gate.location = as.factor(Gate.location),
+         Food.and.drink = as.factor(Food.and.drink),
+         Online.boarding = as.factor(Online.boarding),
+         Seat.comfort = as.factor(Seat.comfort),
+         Inflight.entertainment = as.factor(Inflight.entertainment),
+         On.board.service = as.factor(On.board.service),
+         Leg.room.service = as.factor(Leg.room.service),
+         Baggage.handling = as.factor(Baggage.handling),
+         Checkin.service = as.factor(Checkin.service),
+         Inflight.service = as.factor(Inflight.service),
+         Cleanliness = as.factor(Cleanliness),
+         age_grouping = as.factor(age_grouping),
+         Gender = as.factor(Gender))
+
+head(airplane_train)
+
+```
+
+```{r}
+airplane_test <- read.csv(here::here("datasets", "plane_test.csv"))
+
+airplane_test$Sex <-
+  ifelse(airplane_test$Gender == "Female", 1, 0)
+
+airplane_test$Types.of.Customers <-
+  ifelse(airplane_test$Customer.Type == "Loyal Customer", 1, 0)
+
+airplane_test$Travel.Types <-
+  ifelse(airplane_test$Type.of.Travel == "Personal Travel", 1, 0)
+
+airplane_test$satisfaction <-
+  ifelse(airplane_test$satisfaction == "satisfied", 1, 0)
+
+airplane_test <- dummy_cols(airplane_test, select_columns = 'Class')
+
+airplane_test$age_grouping <- cut(airplane_test$Age, breaks = c(0, 18, 29, 39, 49, 64, 100),
+labels = c("0-18yrs", "19-29yrs", "30-39yrs", "40-49yrs","50-64yrs", "65+ yrs"))
+
+airplane_test$satisfied <- factor(airplane_test$satisfaction, labels=c("No", "Yes"))
+
+airplane_test <-
+  airplane_test %>%
+  mutate(Class = as.factor(Class))
+
+airplane_test$Class <- relevel(airplane_test$Class, ref = "Eco")
+
+
+airplane_test <-
+  airplane_test %>%
+  mutate(Inflight.wifi.service = as.factor(Inflight.wifi.service),
+         Departure.Arrival.time.convenient = as.factor(Departure.Arrival.time.convenient),
+         Ease.of.Online.booking = as.factor(Ease.of.Online.booking),
+         Gate.location = as.factor(Gate.location),
+         Food.and.drink = as.factor(Food.and.drink),
+         Online.boarding = as.factor(Online.boarding),
+         Seat.comfort = as.factor(Seat.comfort),
+         Inflight.entertainment = as.factor(Inflight.entertainment),
+         On.board.service = as.factor(On.board.service),
+         Leg.room.service = as.factor(Leg.room.service),
+         Baggage.handling = as.factor(Baggage.handling),
+         Checkin.service = as.factor(Checkin.service),
+         Inflight.service = as.factor(Inflight.service),
+         Cleanliness = as.factor(Cleanliness),
+         age_grouping = as.factor(age_grouping),
+         Gender = as.factor(Gender))
+
+head(airplane_test)
+
+```
+
+```{r}
+levels(airplane_test$Gender) <- levels(airplane_train$Gender)
+levels(airplane_test$Class) <- levels(airplane_train$Class)
+levels(airplane_test$Inflight.wifi.service) <- levels(airplane_train$Inflight.wifi.service)
+levels(airplane_test$Departure.Arrival.time.convenient) <- levels(airplane_train$Departure.Arrival.time.convenient)
+levels(airplane_test$Ease.of.Online.booking) <- levels(airplane_train$Ease.of.Online.booking)
+levels(airplane_test$Gate.location) <- levels(airplane_train$Gate.location)
+levels(airplane_test$Food.and.drink) <- levels(airplane_train$Food.and.drink)
+levels(airplane_test$Online.boarding) <- levels(airplane_train$Online.boarding)
+levels(airplane_test$Seat.comfort) <- levels(airplane_train$Seat.comfort)
+levels(airplane_test$Inflight.entertainment) <- levels(airplane_train$Inflight.entertainment)
+levels(airplane_test$On.board.service) <- levels(airplane_train$On.board.service)
+levels(airplane_test$Leg.room.service) <- levels(airplane_train$Leg.room.service)
+levels(airplane_test$Baggage.handling) <- levels(airplane_train$Baggage.handling)
+levels(airplane_test$Checkin.service) <- levels(airplane_train$Checkin.service)
+levels(airplane_test$Inflight.service) <- levels(airplane_train$Inflight.service)
+levels(airplane_test$Cleanliness) <- levels(airplane_train$Cleanliness)
+levels(airplane_test$age_grouping) <- levels(airplane_train$age_grouping)
+levels(airplane_test$satisfied) <- levels(airplane_train$satisfied)
+
+
+```
+
+```{r}
+summary(airplane_train)
+```
+
+  
+Ggplot 1: 
+```{r}
+ggplot(airplane_train, 
+       aes(x = Class, 
+           fill = satisfied)) + 
+  geom_bar(position = "stack")
+
+```
+Ggplot 2:
+```{r}
+ggplot(airplane_train, aes(x=Type.of.Travel, y=Flight.Distance, color=Gender)) + geom_boxplot() 
+
+```
+
+Ggplot 3:
+```{r}
+ggplot(airplane_train, aes(x=satisfied, y=Age, color=Gender)) + geom_boxplot() 
+
+```
+
+
+Alyssa: Estimate a random forest model predicting satisfaction as a function of Gender, age_grouping,  Types.of.Customers, Travel.Types, Class, Inflight.wifi.service, Departure.Arrival.time.convenient, Ease.of.Online.booking, Gate.location, Food.and.drink, Online.boarding, Seat.comfort, Inflight.entertainment, On.board.service, Leg.room.service, Baggage.handling, Checkin.service, Inflight.service, Cleanliness, Departure.Delay.in.Minutes and Arrival.Delay.in.Minutes.
+```{r}
+airplane_sliced <- 
+  airplane_train %>% slice(1:8000)
+
+airplane_mod <- randomForest(satisfaction ~ Gender + age_grouping +  Types.of.Customers + Travel.Types + Class +Inflight.wifi.service + Departure.Arrival.time.convenient + Ease.of.Online.booking + Gate.location + Food.and.drink + Online.boarding + Seat.comfort + Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling + Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes,
+                             data = airplane_sliced,
+                       type = classification,
+                       mtry = 3,
+                       na.action = na.roughfix,
+                       ntree = 600, 
+                       importance = TRUE)
+
+```
+
+Use the plot function on the fitted object to produce the tree plot 
+```{r}
+
+plot(airplane_mod)
+```
+
+Tune to find the best mtry.
+```{r}
+tuneGrid <- expand.grid(.mtry = c(1: 10))
+rf_mtry <- randomForest(satisfaction ~ Gender + age_grouping + Sex +  Types.of.Customers + Travel.Types + Class +Inflight.wifi.service + Departure.Arrival.time.convenient + Ease.of.Online.booking + Gate.location + Food.and.drink + Online.boarding + Seat.comfort + Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling + Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes,
+                             data = airplane_sliced,
+    method = "rf",
+    metric = "Accuracy",
+    tuneGrid = tuneGrid,
+    trControl = trControl,
+    importance = TRUE,
+    nodesize = 14,
+    ntree = 200,
+    na.action=na.roughfix)
+print(rf_mtry)
+
+```
+
+Use new mtry and ntrees best fit for model.
+```{r}
+
+airplane_sliced <- 
+  airplane_train %>% slice(1:8000)
+
+airplane_modnew <- randomForest(satisfaction ~ Gender + age_grouping +  Types.of.Customers + Travel.Types + Class +Inflight.wifi.service + Departure.Arrival.time.convenient + Ease.of.Online.booking + Gate.location + Food.and.drink + Online.boarding + Seat.comfort + Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling + Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes,
+                             data = airplane_sliced,
+                       type = classification,
+                       mtry = 7,
+                       na.action = na.roughfix,
+                       ntree = 200, 
+                       importance = TRUE)
+```
+
+Use the print function against the fitted model to view the text descriptions of the model fit
+```{r}
+print(airplane_modnew)
+
+```
+
+Plot of multiimportance frame for variables.
+```{r}
+importance_frame <- measure_importance(airplane_modnew)
+plot_multi_way_importance(importance_frame, size_measure = "no_of_nodes")
+
+```
+
+Testing performance of model on train set. 
+```{r}
+prediction<-predict(airplane_modnew,airplane_train) 
+postResample(pred = prediction, obs = airplane_train$satisfaction)
+```
+
+Testing performance of model on test set.
+```{r}
+prediction<-predict(airplane_modnew,airplane_test) 
+postResample(pred = prediction, obs = airplane_test$satisfaction)
+```
+
+Variable importance
+```{r}
+varImp(airplane_modnew)
+```
+
+Lasso Logistic Regression(Anjali):
+```{r}
+
+lasso_mod <- cv.glmnet(satisfaction ~ Gender + age_grouping +  Types.of.Customers + Travel.Types + Class +Inflight.wifi.service + Departure.Arrival.time.convenient + Ease.of.Online.booking + Gate.location + Food.and.drink + Online.boarding + Seat.comfort + Inflight.entertainment + On.board.service + Leg.room.service + Baggage.handling + Checkin.service + Inflight.service + Cleanliness + Departure.Delay.in.Minutes + Arrival.Delay.in.Minutes, data = airplane_train, alpha = 1)
+
+
+
+lasso_coefs <- data.frame(
+  `lasso_min` = coef(lasso_mod, s = lasso_mod$lambda.min) %>% 
+    round(3) %>% as.matrix() %>% as.data.frame(),
+  `lasso_1se` = coef(lasso_mod, s = lasso_mod$lambda.1se) %>% 
+    round(3) %>% as.matrix() %>%  as.data.frame())  %>% rename(`lasso_min` = 1, `lasso_1se` = 2)
+
+#coef(lasso_mod)
+print(lasso_coefs)
+
+```
+
+```{r}
+print(lasso_mod$lambda.min)
+print(lasso_mod$lambda.1se)
+print(exp(lasso_mod$lambda.min))
+print(exp(lasso_mod$lambda.1se))
+
+``` 
+
+```{r}
+plot(lasso_mod)
+
+``` 
+
+```{r}
+
+coef(lasso_mod,  s= "lambda.min")
+
+```  
+
+MSE Test:
+```{r}
+
+airplane_test_complete <- na.omit(airplane_test)
+
+y_pred <- predict(lasso_mod, newdata = airplane_test)
+library('Metrics')
+mse(y_pred, airplane_test_complete$satisfaction)
+``` 
+
+MSE Train:
+```{r}
+airplane_train_complete <- na.omit(airplane_train)
+y_pred_train <- predict(lasso_mod, newdata = airplane_train_complete)
+mse(y_pred_train, airplane_train_complete$satisfaction)
+
+
+``` 
+
+MAE Test:
+```{r}
+
+airplane_test_complete <- na.omit(airplane_test)
+
+y_pred <- predict(lasso_mod, newdata = airplane_test)
+library('Metrics')
+mae(y_pred, airplane_test_complete$satisfaction)
+``` 
+
+MAE Train:
+```{r}
+airplane_train_complete <- na.omit(airplane_train)
+y_pred_train <- predict(lasso_mod, newdata = airplane_train_complete)
+mae(y_pred_train, airplane_train_complete$satisfaction)
+
+
+``` 
+
+Coefficients:
+```{r}
+lasso_coefs <- data.frame(
+  `lasso_min` = coef(lasso_mod, s = lasso_mod$lambda.min) %>% 
+    round(3) %>% as.matrix() %>% as.data.frame(),
+  `lasso_1se` = coef(lasso_mod, s = lasso_mod$lambda.1se) %>% 
+    round(3) %>% as.matrix() %>%  as.data.frame())  %>% rename(`lasso_min` = 1, `lasso_1se` = 2)
+
+
+print(lasso_coefs)
+plot(lasso_mod)
+
+print(lasso_mod)
+
+``` 
+
+
